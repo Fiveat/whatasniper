@@ -1,0 +1,81 @@
+/* Snips.css */
+
+/* Contenedor principal del panel My Snips */
+.my-snips-container {
+  width: 100%;
+  background-color: #2f2f2f;
+  border: 1px solid #fff; /* Borde blanco */
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  flex: 1; /* Se expandirá en vertical */
+}
+
+/* Encabezado del panel */
+.my-snips-header {
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #3d3d3d;
+  margin-bottom: 1rem;
+}
+.my-snips-header h2 {
+  margin: 0;
+  color: #26e2b3;
+  font-size: 1.2rem;
+}
+.active-label {
+  color: #fff;
+  font-size: 0.9rem;
+  margin-top: 0.25rem;
+}
+
+/* Lista de entradas */
+.snips-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow-y: auto;
+  flex: 1; /* Ocupa todo el espacio vertical restante */
+}
+
+/* Cada entrada */
+.snip-item {
+  padding: 0.75rem;
+  background-color: #242424;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  transition: background 0.2s ease;
+  cursor: pointer;
+}
+.snip-item:hover {
+  background-color: #303030;
+}
+
+/* Header de cada snip (logo + token) */
+.snip-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Logo circular */
+.snip-logo {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* Texto de cada entrada */
+.snip-token {
+  color: #c5c5c5;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.snip-amount {
+  color: #606b85;
+  font-size: 0.85rem;
+}

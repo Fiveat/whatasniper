@@ -1,0 +1,94 @@
+/* src/components/Footer.css */
+
+/* Estilos básicos del footer */
+.footer {
+    background-color: #282c34;
+    color: #ffffff;
+    padding: 20px 0;
+  }
+  
+  .footer-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  /* Texto del footer */
+  .footer-content p {
+    margin: 0;
+    font-size: 1rem;
+    margin-bottom: 20px;
+  }
+  
+  /* Contenedor de íconos sociales */
+  .social-icons {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  
+  /* Estilos para los íconos con efecto glassIco */
+  .glassIco {
+    --width: 50px;
+    width: var(--width);
+    height: var(--width);
+    color: #fff;
+    font-size: 20px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    text-decoration: none;
+    margin: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+  
+  .glassIco::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: rgba(255, 255, 255, 0.3);
+    filter: blur(10px);
+    transform: rotate(45deg) translateX(0);
+    transition: transform 0.5s ease;
+    z-index: -1;
+  }
+  
+  .glassIco:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
+  }
+  
+  .glassIco:hover::before {
+    transform: rotate(45deg) translateX(100px);
+  }
+  
+  /* Ajuste de íconos react-icons */
+  .glassIco svg {
+    font-size: 20px;
+  }
+  
+  /* Responsive Design para íconos */
+  @media (max-width: 600px) {
+    .glassIco {
+      --width: 40px;
+    }
+  
+    .glassIco svg {
+      font-size: 18px;
+    }
+    p {
+      text-align: center;
+      font-weight: 400; /* Regular */
+    }
+  }
+  

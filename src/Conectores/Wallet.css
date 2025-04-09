@@ -1,0 +1,42 @@
+/* src/Conectores/Wallet.css */
+
+.btn-wallet {
+  background-color: transparent;
+  color: #00ffc8;
+  border: 2px solid #00ffc8;
+  padding: 10px 20px;
+  border-radius: 25px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(5px);
+}
+
+.btn-wallet:hover {
+  background-color: #00ffc8;
+  color: #000;
+  transform: scale(1.05);
+  box-shadow: 0 0 10px #00ffc8, 0 0 20px #00ffc8;
+}
+
+.btn-wallet.disconnect {
+  border-color: #ff006e;
+  color: #ff006e;
+}
+
+.btn-wallet.disconnect:hover {
+  background-color: #ff006e;
+  color: #fff;
+  box-shadow: 0 0 10px #ff006e, 0 0 20px #ff006e;
+}
+
+.btn-wallet.connect.highlight {
+  background-color: #007BFF;
+  color: #fff;
+  border-color: #007BFF;
+}
+
+.btn-wallet.connect.highlight:hover {
+  background-color: #0056b3;
+  box-shadow: 0 0 10px #0056b3, 0 0 20px #0056b3;
+}

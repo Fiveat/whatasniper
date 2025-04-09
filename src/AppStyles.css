@@ -1,0 +1,116 @@
+/* src/AppStyles.css */
+
+/* Sección informativa */
+.info-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;   /* Centrar horizontalmente */
+    justify-content: center;  /* Centrar verticalmente */
+    text-align: center;       /* Centrar el texto */
+    padding: 20px;
+    background-color: #1c1f24; /* Fondo oscuro */
+    color: #ffffff;           /* Texto blanco */
+    border-radius: 8px;       /* Bordes redondeados */
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5); /* Sombra para destacar */
+    max-width: 800px;         /* Ancho máximo del contenedor */
+    margin: 20px auto;        /* Centrar horizontalmente y agregar espacio superior e inferior */
+  }
+  
+  /* Títulos en la sección informativa */
+  .info-section h1 {
+    font-size: 1.8rem; /* Tamaño reducido del título */
+    margin-bottom: 15px;
+    color: #00ffc8; /* Color cian brillante */
+    text-shadow: 0 0 5px rgba(0, 255, 200, 0.3);
+  }
+  
+  .info-section h2 {
+    font-size: 1.5rem;
+    margin: 15px 0 10px;
+    color: #00ffc8;
+  }
+  
+  .info-section h3 {
+    font-size: 1.2rem;
+    margin: 10px 0;
+    color: #d1d5db; /* Color más claro */
+  }
+  
+  /* Párrafos dentro de la sección */
+  .info-section p {
+    font-size: 1rem; /* Reducir el tamaño del texto */
+    margin-bottom: 10px;
+    line-height: 1.5; /* Reducir el interlineado */
+    color: #e5e7eb;   /* Texto más claro */
+    overflow-wrap: break-word;  /* Permite “romper” palabras largas */
+    word-wrap: break-word;
+    word-break: break-word;
+  }
+  
+  /* Listas dentro de la sección */
+  .info-section ul {
+    list-style-type: disc;
+    padding-left: 20px;
+    margin: 10px 0;
+    color: #e5e7eb;
+  }
+  
+  .info-section li {
+    font-size: 1rem;
+    margin-bottom: 5px;
+    overflow-wrap: break-word;
+  }
+  
+  /* Texto resaltado */
+  .info-section strong {
+    color: #00ffc8; /* Resaltar con color cian brillante */
+  }
+  
+  /* Ajustes de media queries para pantallas <= 768px */
+  @media (max-width: 768px) {
+    .info-section {
+      padding: 15px;
+      max-width: 90%; /* Reducir el ancho en pantallas pequeñas */
+    }
+  
+    .info-section h1 {
+      font-size: 1.5rem;
+    }
+  
+    .info-section h2 {
+      font-size: 1.2rem;
+    }
+  
+    .info-section h3 {
+      font-size: 1rem;
+    }
+  
+    .info-section p,
+    .info-section li {
+      font-size: 0.9rem;
+    }
+  }
+  
+  /* Ajustes adicionales para pantallas muy pequeñas (<= 480px) */
+  @media (max-width: 480px) {
+    .info-section {
+      padding: 10px;
+      max-width: 95%;
+    }
+  
+    .info-section h1 {
+      font-size: 1.3rem;
+    }
+    .info-section h2 {
+      font-size: 1.1rem;
+    }
+    .info-section h3 {
+      font-size: 0.95rem;
+    }
+  
+    .info-section p,
+    .info-section li {
+      font-size: 0.85rem;
+    }
+  }
+  
