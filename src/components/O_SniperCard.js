@@ -17,8 +17,8 @@ import {
   AccountAllowanceApproveTransaction,
   AccountId,
   Hbar,
+  AccountInfoQuery,
   TokenAssociateTransaction,
-  AccountBalanceQuery,
 } from "@hashgraph/sdk";
 
 // Leemos la API Key de SentX desde .env
@@ -55,7 +55,7 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // tokensData es un objeto con { "Kabila": "0.0.xxxx", "Hashpack": "0.0.yyyy" ... }
+  // tokensData es un objeto con { "Kabila": "0.0.123...", ... }
   const { tokens } = tokensData;
   const tokenEntries = Object.entries(tokens);
 
@@ -69,7 +69,6 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
   const { data: accountIdKabila } = useAccountId({
     connector: KabilaConnector,
   });
-
   // Para Hashpack
   const { isConnected: isConnectedHashpack, signer: signerHashpack } =
     useWallet(HashpackConnector);
@@ -102,139 +101,106 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
   };
 
   /*************************************************************
-   * 3) CHEQUEO DE ASOCIACIÓN + ALLOWANCE + REGISTRO EN SUPABASE
+   * NUEVO CÓDIGO: función que verifica si la cuenta ya está asociada
+   * con un token, y en caso negativo firma la asociación.
    *************************************************************/
-
-  // Verifica si el token (NFT) está asociado en la wallet conectada
-  const checkTokenAssociation = async (tokenIdToCheck) => {
+  const checkAndAssociateTokenIfNeeded = async (token_id) => {
     try {
-      if (!connectedSigner || !accountIdToCheck || !isConnected) return false;
-      const accountIdToCheck = AccountId.fromString(accountId);
+      if (!connectedSigner || !accountId) {
+        setAllowanceMessage("No se ha podido verificar la asociación.");
+        return false;
+      }
 
-      const balanceQuery = new AccountBalanceQuery().setAccountId(
-        accountIdToCheck
-      );
-      const populatedTx = await connectedSigner.populateTransaction(balanceQuery);
-      const balanceResult = await populatedTx.executeWithSigner(connectedSigner);
+      // 1) Obtenemos la info de la cuenta, incluyendo tokenRelationships
+      const accountInfo = await new AccountInfoQuery()
+        .setAccountId(AccountId.fromString(accountId))
+        .executeWithSigner(connectedSigner);
 
-      // "tokens" dentro de balanceResult es un Map con IDs asociadas
-      return balanceResult.tokens._map.has(tokenIdToCheck);
+      // 'tokenRelationships' es un Map, por lo que iteramos sus pares [tid, relationship]
+      let isAlreadyAssociated = false;
+      for (const [tid] of accountInfo.tokenRelationships) {
+        if (tid.toString() === token_id) {
+          isAlreadyAssociated = true;
+          break;
+        }
+      }
+
+      if (isAlreadyAssociated) {
+        console.log(
+          `La cuenta ${accountId} ya está asociada al token ${token_id}`
+        );
+        return true; // no hace falta asociar de nuevo
+      }
+
+      // 2) Como no está asociado, procedemos a asociar
+      setAllowanceMessage("Asociando token, por favor firma la transacción...");
+
+      const associateTx = new TokenAssociateTransaction()
+        .setAccountId(AccountId.fromString(accountId))
+        .setTokenIds([token_id])
+        .setMaxTransactionFee(new Hbar(2))
+        .setTransactionMemo("Asociando token a la cuenta");
+
+      const populatedTx = await connectedSigner.populateTransaction(associateTx);
+      const signedTx = await connectedSigner.signTransaction(populatedTx);
+      const response = await signedTx.executeWithSigner(connectedSigner);
+      const receipt = await response.getReceiptWithSigner(connectedSigner);
+
+      if (receipt && receipt.status.toString() === "SUCCESS") {
+        setAllowanceMessage(`Token ${token_id} asociado correctamente.`);
+        return true;
+      } else {
+        throw new Error("La transacción de asociación no fue confirmada.");
+      }
     } catch (error) {
-      console.error("Error comprobando asociación del token:", error);
+      console.error("Error al asociar token:", error);
+      setAllowanceMessage("Error al asociar token: " + error.message);
       return false;
     }
   };
 
-  // Asocia el token si no está asociado
-  const associateTokenIfNeeded = async (tokenIdToAssociate) => {
-    try {
-      const isAlreadyAssociated = await checkTokenAssociation(tokenIdToAssociate);
-      if (!isAlreadyAssociated) {
-        console.log("Token no asociado. Intentando asociar...");
-        const associateTx = new TokenAssociateTransaction()
-          .setAccountId(AccountId.fromString(accountId))
-          .setTokenIds([tokenIdToAssociate])
-          .setTransactionMemo("Asociación del NFT por WhataSniper")
-          .setMaxTransactionFee(new Hbar(5)); // Evita "INSUFFICIENT_TX_FEE"
-
-        const populatedTx = await connectedSigner.populateTransaction(associateTx);
-        const signedTx = await connectedSigner.signTransaction(populatedTx);
-        const response = await signedTx.executeWithSigner(connectedSigner);
-        const receipt = await response.getReceiptWithSigner(connectedSigner);
-
-        if (receipt.status.toString() === "SUCCESS") {
-          console.log("Token asociado con éxito.");
-        } else {
-          console.error(
-            "No se pudo completar la asociación del token. Receipt:",
-            receipt
-          );
-        }
-      } else {
-        console.log("El token ya está asociado. Continuando...");
-      }
-    } catch (error) {
-      console.error("Error en associateTokenIfNeeded:", error);
-
-      // Si la red responde con "TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT", 
-      // simplemente continuamos y no detenemos la ejecución.
-      if (error.status === "TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT") {
-        console.log("TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT: continuamos el proceso normal.");
-        return;
-      }
-
-      // Si es otro tipo de error, lo lanzamos para que handleCreate se entere.
-      throw error;
-    }
-  };
-
-  // Calculamos la suma total de max_price de las órdenes abiertas (estado=0) +
-  // el nuevo valor hbar, y aprobamos un allowance acumulativo.
-  const handleSetAllowance = async (newHbarValue) => {
+  /*************************************************************
+   * 3) CREACIÓN EN SUPABASE + ALLOWANCE
+   * AÑADIMOS RETORNO BOOLEANO EN handleSetAllowance
+   *************************************************************/
+  const handleSetAllowance = async (overrideAllowance) => {
     console.log("handleSetAllowance iniciado");
     if (!isConnected || !accountId || !connectedSigner) {
       setAllowanceMessage("No se ha podido obtener el signer de la wallet.");
       return false;
     }
 
+    let parsedAllowance = parseFloat(hbar);
+    if (overrideAllowance !== undefined) {
+      parsedAllowance = parseFloat(overrideAllowance);
+    }
+
+    if (isNaN(parsedAllowance) || parsedAllowance <= 0) {
+      setAllowanceMessage("La cantidad HBAR no es válida para allowance.");
+      return false;
+    }
+
     try {
       setAllowanceMessage("Solicitando allowance...");
 
-      // 1) Obtenemos todas las órdenes abiertas para sumar sus max_price
-      const { data: openOrders, error } = await supabase
-        .from("snips")
-        .select("max_price")
-        .eq("wallet_id", accountId)
-        .eq("estado", 0);
-
-      if (error) {
-        console.error("Error al obtener órdenes abiertas:", error);
-        setAllowanceMessage("Error al obtener órdenes abiertas.");
-        return false;
-      }
-
-      // 2) Sumamos los max_price existentes + el nuevo valor
-      //    Para evitar "Hbar in tinybars contains decimals",
-      //    redondeamos a máximo 8 decimales.
-      const existingAllowance = openOrders.reduce((acc, curr) => {
-        return acc + parseFloat(curr.max_price || 0);
-      }, 0);
-
-      const newHbarParsed = parseFloat(newHbarValue || 0);
-      const newHbarRounded = parseFloat(newHbarParsed.toFixed(8));
-      const totalAllowanceNumber = existingAllowance + newHbarRounded;
-      const finalTotal = parseFloat(totalAllowanceNumber.toFixed(8));
-
-      if (isNaN(finalTotal) || finalTotal <= 0) {
-        setAllowanceMessage(
-          "No hay allowance para configurar (ninguna orden pendiente)."
-        );
-        return false;
-      }
-
-      // 3) Creamos la transacción de allowance con la suma final
       const spenderAccountId = "0.0.4351034";
-      const allowanceHbar = new Hbar(finalTotal);
 
       const allowanceTx = new AccountAllowanceApproveTransaction()
         .approveHbarAllowance(
           AccountId.fromString(accountId),
           AccountId.fromString(spenderAccountId),
-          allowanceHbar
+          new Hbar(parsedAllowance)
         )
         .setMaxTransactionFee(new Hbar(2))
         .setTransactionMemo("Allowance WhataSniper");
 
-      // 4) Ejecutamos la transacción
       const populatedTx = await connectedSigner.populateTransaction(allowanceTx);
       const signedTx = await connectedSigner.signTransaction(populatedTx);
       const response = await signedTx.executeWithSigner(connectedSigner);
       const receipt = await response.getReceiptWithSigner(connectedSigner);
 
       if (receipt && receipt.status.toString() === "SUCCESS") {
-        setAllowanceMessage(
-          `Allowance total de ${finalTotal} HBAR confirmado.`
-        );
+        setAllowanceMessage(`Allowance de ${parsedAllowance} HBAR confirmada.`);
         return true;
       } else {
         throw new Error("La transacción de allowance no fue confirmada.");
@@ -248,7 +214,6 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
     }
   };
 
-  // Controla todo el proceso final de la orden
   const handleCreate = async () => {
     console.log("handleCreate iniciado");
     const token_id = tokenMode === "manual" ? tokenManual : tokenSelect;
@@ -265,18 +230,57 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
     }
 
     try {
-      // 1) Asociar el token si no está asociado
-      await associateTokenIfNeeded(token_id);
-
-      // 2) Solicitar allowance (acumulativa) si procede
-      const allowanceOk = await handleSetAllowance(hbar);
-      if (!allowanceOk) {
-        alert("No se pudo confirmar el allowance. No se registrará la orden.");
+      /*************************************************************
+       * 0) Antes de nada, verificamos la asociación del token:
+       *    Si no está asociado, pedimos que se firme la transacción.
+       *************************************************************/
+      const associationSuccess = await checkAndAssociateTokenIfNeeded(token_id);
+      if (!associationSuccess) {
+        // Si no se asoció, se cancela.
+        setAllowanceMessage("Orden cancelada");
         resetForm();
         return;
       }
 
-      // 3) Insertar la nueva orden en Supabase SÓLO después de la confirmación del allowance
+      /*************************************************************
+       * 1. Revisamos si existen órdenes pendientes (estado=0) de este wallet.
+       * 2. Sumamos sus max_price para calcular el allowance acumulativo
+       *    (incluyendo la nueva orden que se pretende crear).
+       *************************************************************/
+      let totalAllowance = parseFloat(hbar);
+      try {
+        const { data: existingOrders, error: existingError } = await supabase
+          .from("snips")
+          .select("max_price")
+          .eq("wallet_id", accountId)
+          .eq("estado", 0);
+
+        if (existingError) {
+          console.error("Error al obtener órdenes existentes:", existingError);
+        } else if (existingOrders && existingOrders.length > 0) {
+          const sumOfPending = existingOrders.reduce(
+            (acc, order) => acc + parseFloat(order.max_price || 0),
+            0
+          );
+          // Sumamos el hbar nuevo
+          totalAllowance = sumOfPending + parseFloat(hbar);
+        }
+      } catch (errorFetch) {
+        console.error("Error al intentar sumar pendientes:", errorFetch);
+      }
+
+      // 2) Pedimos allowance por el total (anterior + nuevo)
+      const allowanceSuccess = await handleSetAllowance(totalAllowance);
+      if (!allowanceSuccess) {
+        // Si no se firma o hay error, marcamos "Orden cancelada"
+        setAllowanceMessage("Orden cancelada");
+        resetForm();
+        return;
+      }
+
+      /*************************************************************
+       * 3) SOLO si la allowance fue firmada, insertamos en Supabase
+       *************************************************************/
       const { error } = await supabase.from("snips").insert([
         {
           wallet_id: accountId,
@@ -456,7 +460,7 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
           />
         </div>
 
-        {/* Botón: si es móvil se muestra un botón normal, sino el deslizador */}
+        {/* Botón: si es móvil se muestra un botón de pulsación normal, sino el deslizador */}
         {isMobile ? (
           <button
             type="button"
