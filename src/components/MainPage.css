@@ -1,3 +1,5 @@
+/* Estilos originales */
+
 /* Contenedor general de la página */
 .main-page {
     display: flex;
@@ -5,17 +7,17 @@
     align-items: center;
     min-height: calc(100vh - 130px); /* Ajusta restando el alto del Header y Footer */
     background-color: #161616;
-  }
-  
-  /* Contenedor de los botones en grid */
-  .button-grid {
+}
+
+/* Contenedor de los botones en grid */
+.button-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 40px;
-  }
-  
-  /* Estilo para cada botón en forma de rombo */
-  .diamond-button {
+}
+
+/* Estilo para cada botón en forma de rombo */
+.diamond-button {
     width: 150px;
     height: 150px;
     border: 3px solid #ffbf00; /* Borde neon dorado */
@@ -25,28 +27,41 @@
     transform: rotate(45deg);
     cursor: pointer;
     transition: transform 0.3s ease;
-  }
-  
-  .diamond-button:hover {
+}
+
+.diamond-button:hover {
     transform: rotate(45deg) scale(1.05);
-  }
-  
-  /* Contenido interno: se rota de nuevo para mostrar imagen y texto en orientación normal */
-  .inner-content {
+}
+
+/* Contenido interno: se rota de nuevo para mostrar imagen y texto en orientación normal */
+.inner-content {
     transform: rotate(-45deg);
     display: flex;
     flex-direction: column;
     align-items: center;
-  }
-  
-  .btn-image {
+}
+
+.btn-image {
     width: 50px;
     height: 50px;
-  }
-  
-  .inner-content p {
+}
+
+.inner-content p {
     margin-top: 8px;
     font-size: 14px;
     color: #fff;
-  }
-  
+}
+
+/* NUEVO: Animación de shake para el efecto visual */
+@keyframes shake {
+  0% { transform: translateX(0) rotate(45deg); }
+  20% { transform: translateX(-5px) rotate(45deg); }
+  40% { transform: translateX(5px) rotate(45deg); }
+  60% { transform: translateX(-5px) rotate(45deg); }
+  80% { transform: translateX(5px) rotate(45deg); }
+  100% { transform: translateX(0) rotate(45deg); }
+}
+
+.shake {
+  animation: shake 0.5s;
+}

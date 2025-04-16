@@ -1,27 +1,49 @@
 import React from "react";
-import "../styles/MainPage.css"; // Ajusta la ruta según tu estructura
-import iconMain from "../assets/iconMain.png"; // Imagen para el botón principal
-import iconSoon from "../assets/soon.png"; // Imagen para los botones "soon"
+import "./MainPage.css"; // Asegúrate que la ruta coincide con tu estructura
+import iconMain from "../assets/Sniper.jpg"; // Imagen para el botón principal
+import iconSoon from "../assets/ComingSoon.jpg"; // Imagen para los botones "soon"
 
-const MainPage = ({ onSelectPage }) => {
-  // onSelectPage será una función que actualice la página seleccionada en App.js
+const MainPage = ({ onSelectPage, accountId }) => {
+  // Manejador de clics; recibe el evento para agregar el efecto shake si la wallet no está conectada.
+  const handleClick = (e, page) => {
+    if (!accountId) {
+      const el = e.currentTarget;
+      el.classList.add("shake");
+      setTimeout(() => {
+        el.classList.remove("shake");
+      }, 500);
+      alert("Wallet not connected");
+      return;
+    }
+    onSelectPage(page);
+  };
 
   return (
     <div className="main-page">
       <div className="button-grid">
-        {/* Primer botón: muestra contenido principal */}
-        <div className="diamond-button" onClick={() => onSelectPage("maincontent")}>
+        {/* Botón para mostrar el contenido principal */}
+        <div
+          className="diamond-button"
+          onClick={(e) => handleClick(e, "maincontent")}
+        >
           <div className="inner-content">
-            <img src={iconMain} alt="Icono principal" className="btn-image" />
+            <img
+              src={iconMain}
+              alt="Contenido Principal"
+              className="btn-image"
+            />
             <p>Contenido Principal</p>
           </div>
         </div>
-
-        {/* Botones restantes: muestran "soon" */}
+        {/* Resto de botones, mostrando "Soon" */}
         {[1, 2, 3].map((item) => (
-          <div key={item} className="diamond-button" onClick={() => onSelectPage("soon")}>
+          <div
+            key={item}
+            className="diamond-button"
+            onClick={(e) => handleClick(e, "soon")}
+          >
             <div className="inner-content">
-              <img src={iconSoon} alt="Próximamente" className="btn-image" />
+              <img src={iconSoon} alt="Soon" className="btn-image" />
               <p>Soon</p>
             </div>
           </div>

@@ -19,8 +19,6 @@ const MainContent = ({ handleCreate, accountId }) => {
   // Estado local para el contador de booster
   const [boosterUsed, setBoosterUsed] = useState(0);
 
-
-
   useEffect(() => {
     const upsertAndFetchUser = async () => {
       if (!accountId) return;
@@ -91,6 +89,21 @@ const MainContent = ({ handleCreate, accountId }) => {
 
   return (
     <main className="main-content">
+      {/* NUEVO: Label "< Back" ajustado para volver a mainpage.js */}
+      <div
+        className="back-label"
+        style={{
+          margin: "0.5rem 0",
+          fontSize: "16px",
+          color: "#26e2b3",
+          cursor: "pointer",
+          textAlign: "left"
+        }}
+        onClick={() => (window.location.href = "/")}
+      >
+        &lt; Back
+      </div>
+
       {/* SECCIÓN SUPERIOR */}
       <div className="top-section">
         <div className="top-left">
@@ -149,7 +162,6 @@ const MainContent = ({ handleCreate, accountId }) => {
               {!isMaxed && (
                 <span className="booster-text">
                   {boosterUsed}/{booster}
-                  
                 </span>
               )}
             </div>
@@ -165,7 +177,7 @@ const MainContent = ({ handleCreate, accountId }) => {
           </div>
         )}
         <div className="bottom-right">
-        <SniperCard handleCreate={handleCreate} boosterUsed={boosterUsed} />
+          <SniperCard handleCreate={handleCreate} boosterUsed={boosterUsed} />
         </div>
       </div>
     </main>

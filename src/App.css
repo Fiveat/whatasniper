@@ -1,5 +1,3 @@
-/* App.css */
-
 /* ============================= */
 /*            Reset / Base             */
 /* ============================= */
@@ -15,6 +13,12 @@ body {
   font-family: "Inter", sans-serif;
 }
 
+/* NUEVO: Aseguramos que html y body ocupen siempre el 100% del tamaño del navegador */
+html, body {
+  width: 100%;
+  height: 100%;
+}
+
 /* ============================= */
 /*     Contenedor Principal         */
 /* ============================= */
@@ -22,6 +26,11 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+}
+
+/* NUEVO: Forzamos que el contenedor principal se ajuste al 100% del ancho */
+.app-container {
+  width: 100%;
 }
 
 /* ============================= */
@@ -150,6 +159,11 @@ a {
   display: flex;
   flex-direction: row;
   min-height: calc(100vh - 70px - 60px);
+}
+
+/* NUEVO: Se añade width:100% para asegurar el ajuste al navegador */
+.main-layout {
+  width: 100%;
 }
 
 /* ============================= */

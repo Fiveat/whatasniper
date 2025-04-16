@@ -1,5 +1,3 @@
-/* src/AppStyles.css */
-
 /* ============================= */
 /*         Sección Informativa         */
 /* ============================= */
@@ -16,6 +14,12 @@
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5); /* Sombra para destacar */
   max-width: 800px;               /* Ancho máximo del contenedor */
   margin: 20px auto;              /* Centrar horizontalmente y agregar espacio superior e inferior */
+}
+
+/* NUEVO: Ajustamos el contenedor informativo para ocupar el 100% del ancho disponible */
+.info-section {
+  width: 100%;
+  max-width: 100%;
 }
 
 /* Títulos en la sección informativa */
@@ -117,4 +121,10 @@
   .info-section li {
       font-size: 0.85rem;
   }
+}
+
+/* NUEVO: Aseguramos que el html y body ocupen siempre el 100% del navegador */
+html, body {
+  width: 100%;
+  height: 100%;
 }
