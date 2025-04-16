@@ -1,0 +1,10 @@
+.soon-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: calc(100vh - 130px);
+    background-color: #161616;
+    color: #fff;
+    font-size: 2rem;
+  }
+  

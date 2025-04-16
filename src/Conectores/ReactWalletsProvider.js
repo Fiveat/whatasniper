@@ -22,7 +22,8 @@ const ReactWalletsProvider = ({ children }) => {
   return (
     <HWBridgeProvider
       metadata={metadata}
-      projectId={'cf5f905105402b8b39430d5546a0add6'} // Reemplaza con tu Project ID de Wallet Connect
+      //projectId={'ce908f2d9e2ee7fcd7076c1b0cd8032d'} // Reemplaza con tu Project ID de Wallet Connect
+      projectId={'cf5f905105402b8b39430d5546a0add6'}
       connectors={[KabilaConnector, HashpackConnector]}
       chains={[HederaMainnet, HederaTestnet]}
     >

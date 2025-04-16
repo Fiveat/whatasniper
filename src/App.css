@@ -1,6 +1,8 @@
 /* App.css */
 
-/* Reset / Base */
+/* ============================= */
+/*            Reset / Base             */
+/* ============================= */
 * {
   margin: 0;
   padding: 0;
@@ -13,14 +15,18 @@ body {
   font-family: "Inter", sans-serif;
 }
 
-/* Contenedor principal que abarca toda la altura del viewport */
+/* ============================= */
+/*     Contenedor Principal         */
+/* ============================= */
 .app-container {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
 }
 
-/* Global Utilities */
+/* ============================= */
+/*         Global Utilities         */
+/* ============================= */
 a {
   color: inherit;
   text-decoration: none;
@@ -42,34 +48,32 @@ a {
   }
 }
 
-/* HEADER */
+/* ============================= */
+/*             HEADER               */
+/* ============================= */
 .header {
   display: flex;
   /* Mantenemos la alineación vertical centrada */
   align-items: center;
   /* Separar logo a la izquierda y controles a la derecha */
   justify-content: space-between;
-
+  
   background: #161616;
   padding: 1rem 2rem;
   border-bottom: 1px solid #2f2f2f;
   position: relative;
-
+  
   /* Permite que el contenido salte a la siguiente línea en caso de poco espacio */
   flex-wrap: wrap;
 }
 
-/* Logo: tamaño máximo y alineado a la izquierda (gracias a space-between) */
+/* Logo (combinado, ya que ambas definiciones son idénticas) */
 .logo {
   max-width: 120px;
   height: auto;
 }
 
-/*
-  Contenedor de botones (Connect, Gear, Power).
-  Se retira position: absolute para que se comporte en
-  el flujo normal de flex y quede a la derecha.
-*/
+/* Contenedor de botones (Connect, Gear, Power) */
 .header-controls {
   display: flex;
   align-items: center;
@@ -117,11 +121,6 @@ a {
   color: #161616;
 }
 
-.logo {
-  max-width: 120px;
-  height: auto;
-}
-
 /* Toggle Sidebar Button (para mobile) */
 .toggle-sidebar-btn {
   display: none;
@@ -144,14 +143,18 @@ a {
   }
 }
 
-/* MAIN LAYOUT */
+/* ============================= */
+/*          MAIN LAYOUT             */
+/* ============================= */
 .main-layout {
   display: flex;
   flex-direction: row;
   min-height: calc(100vh - 70px - 60px);
 }
 
-/* SIDEBAR */
+/* ============================= */
+/*            SIDEBAR               */
+/* ============================= */
 .sidebar {
   width: 300px;
   background-color: #2f2f2f;
@@ -225,7 +228,9 @@ a {
   color: #606b85;
 }
 
-/* MAIN CONTENT */
+/* ============================= */
+/*         MAIN CONTENT            */
+/* ============================= */
 .main-content {
   flex: 1;
   display: flex;
@@ -343,7 +348,9 @@ a {
   font-weight: 900;
 }
 
-/* BOTTOM SECTION (Card Sniper) */
+/* ============================= */
+/*         BOTTOM SECTION          */
+/* ============================= */
 .bottom-section {
   flex: 1;
   display: flex;
@@ -419,7 +426,9 @@ a {
   transform: scale(1.04);
 }
 
-/* FOOTER */
+/* ============================= */
+/*             FOOTER               */
+/* ============================= */
 footer {
   background: #161616;
   border-top: 1px solid #2f2f2f;
@@ -437,24 +446,26 @@ footer a:hover {
   color: #fff;
 }
 
-/* Responsive (Smartphones) */
+/* ============================= */
+/*        Responsive (Smartphones)      */
+/* ============================= */
 @media (max-width: 768px) {
-  /*
-    Si necesitas que el header se reorganice en móviles
-    (logo arriba, botones abajo), podrías hacer:
-    .header {
-      flex-direction: column;
+    /*
+      Si necesitas que el header se reorganice en móviles
+      (logo arriba, botones abajo), podrías hacer:
+      .header {
+        flex-direction: column;
+      }
+      .logo { margin-bottom: 0.5rem; }
+      .header-controls { margin-left: auto; }
+    */
+    .toggle-sidebar-btn {
+      display: block;
     }
-    .logo { margin-bottom: 0.5rem; }
-    .header-controls { margin-left: auto; }
-  */
-  .toggle-sidebar-btn {
-    display: block;
-  }
 
-  /* .top-section en modo columna */
-  .top-section {
-    flex-direction: column;
-    align-items: center;
-  }
+    /* .top-section en modo columna */
+    .top-section {
+      flex-direction: column;
+      align-items: center;
+    }
 }
