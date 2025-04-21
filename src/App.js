@@ -3,6 +3,7 @@ import Header from "./components/Header";
 import MainContent from "./components/MainContent";
 import MainPage from "./components/MainPage";
 import SoonPage from "./components/SoonPage";
+import BuyTokens from "./components/BuyTokens";
 import Footer from "./components/Footer";
 import Modal from "./modal";
 import "./App.css";
@@ -23,6 +24,8 @@ function App() {
         return <MainPage onSelectPage={setCurrentPage} accountId={accountId} />;
       case "maincontent":
         return <MainContent handleCreate={handleCreate} accountId={accountId} />;
+      case "buytokens":
+        return <BuyTokens accountId={accountId} />;
       case "soon":
         return <SoonPage accountId={accountId} />;
       default:

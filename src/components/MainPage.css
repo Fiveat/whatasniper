@@ -5,8 +5,11 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    flex-direction: column;
     min-height: calc(100vh - 130px); /* Ajusta restando el alto del Header y Footer */
     background-color: #161616;
+    width: 100%;
+    padding: 1rem;
 }
 
 /* Contenedor de los botones en grid */
@@ -20,13 +23,14 @@
 .diamond-button {
     width: 150px;
     height: 150px;
-    border: 3px solid #ffbf00; /* Borde neon dorado */
+    border: 3px solid #ffbf00; /* Borde neón dorado */
     display: flex;
     justify-content: center;
     align-items: center;
     transform: rotate(45deg);
     cursor: pointer;
     transition: transform 0.3s ease;
+    background-color: transparent;
 }
 
 .diamond-button:hover {
@@ -52,7 +56,7 @@
     color: #fff;
 }
 
-/* NUEVO: Animación de shake para el efecto visual */
+/* Animación de shake para el efecto visual */
 @keyframes shake {
   0% { transform: translateX(0) rotate(45deg); }
   20% { transform: translateX(-5px) rotate(45deg); }
@@ -64,4 +68,56 @@
 
 .shake {
   animation: shake 0.5s;
+}
+
+/* Botón para comprar WSNIP centrado debajo de los 4 botones */
+.buy-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 2rem;
+    width: 100%;
+}
+
+.buy-button {
+    background-color: #20e0b1;         /* Verde global */
+    color: #161616;
+    border: 3px solid #ffbf00;         /* Borde dorado */
+    border-radius: 50px;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.buy-button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 8px rgba(32, 224, 177, 0.6);
+}
+
+/* Icono dentro del botón */
+.buy-icon {
+    width: 24px;
+    height: 24px;
+}
+
+/* Responsive para móviles */
+@media (max-width: 480px) {
+  .diamond-button {
+    width: 120px;
+    height: 120px;
+  }
+
+  .btn-image {
+    width: 40px;
+    height: 40px;
+  }
+
+  .buy-button {
+    padding: 0.6rem 1.2rem;
+    font-size: 0.9rem;
+  }
 }

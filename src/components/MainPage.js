@@ -2,6 +2,7 @@ import React from "react";
 import "./MainPage.css"; // Asegúrate que la ruta coincide con tu estructura
 import iconMain from "../assets/Sniper.jpg"; // Imagen para el botón principal
 import iconSoon from "../assets/ComingSoon.jpg"; // Imagen para los botones "soon"
+import iconBuy from "../assets/WSNIP.jpg"; // Imagen para comprar WSNIP
 
 const MainPage = ({ onSelectPage, accountId }) => {
   // Manejador de clics; recibe el evento para agregar el efecto shake si la wallet no está conectada.
@@ -48,6 +49,16 @@ const MainPage = ({ onSelectPage, accountId }) => {
             </div>
           </div>
         ))}
+      </div>
+      {/* Botón para comprar WSNIP centrado debajo de los 4 botones */}
+      <div className="buy-container">
+        <button
+          className="buy-button"
+          onClick={(e) => handleClick(e, "buytokens")}
+        >
+          <img src={iconBuy} alt="Comprar WSNIP" className="buy-icon" />
+          <span>Comprar WSNIP</span>
+        </button>
       </div>
     </div>
   );
