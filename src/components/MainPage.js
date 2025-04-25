@@ -41,7 +41,7 @@ const MainPage = ({ onSelectPage, accountId }) => {
           <div
             key={item}
             className="diamond-button"
-            onClick={(e) => handleClick(e, "soon")}
+            //onClick={(e) => handleClick(e, "soon")}
           >
             <div className="inner-content">
               <img src={iconSoon} alt="Soon" className="btn-image" />

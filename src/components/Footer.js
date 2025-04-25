@@ -12,7 +12,7 @@ function Footer() {
     <footer className="footer">
       <div className="footer-content">
         <p>
-          Copyright © {new Date().getFullYear()} Whatalab. All Right Reserved. |1.0.0.2|
+          Copyright © {new Date().getFullYear()} Whatalab. All Right Reserved. |1.0.0.3|
         </p>
         <div className="social-icons">
           <a

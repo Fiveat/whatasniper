@@ -14,14 +14,85 @@ import {
 
 // SDK de Hedera
 import {
+  Client,
+  TokenInfoQuery,
   AccountAllowanceApproveTransaction,
   AccountId,
   Hbar,
   TokenAssociateTransaction,
-  AccountBalanceQuery,
+  AccountBalanceQuery, // se deja aunque no se use (no eliminar)
 } from "@hashgraph/sdk";
 
 const sentxApiKey = process.env.REACT_APP_SENTX_KEY;
+
+/* ------------------------------------------------------------------
+ *  CREDENCIALES *EXACTAS* DEL FICHERO fallback.js
+ *  (se usan **solo** para consultar TokenInfo; no toques nada)
+ * ------------------------------------------------------------------*/
+const FALLBACK_WALLET_ID = "0.0.8205787";
+const FALLBACK_PRIVATE_KEY =
+  "3030020100300706052b8104000a04220420153b05b0c6adbf60a5056eca0796d7a9e23932874944d543c2d9e2a1ac727ef5";
+
+/* ------------------------------------------------------------------
+ *  FUNCIÓN AUXILIAR: ¿el token tiene RoyaltyFee con Fallback?
+ * ------------------------------------------------------------------*/
+async function tokenHasRoyaltyFallback(tokenId) {
+  try {
+    const client = Client.forMainnet();
+    client.setOperator(FALLBACK_WALLET_ID, FALLBACK_PRIVATE_KEY);
+
+    // Si viene con “/serial”, lo recortamos (0.0.1234/7 → 0.0.1234)
+    const tokenIdBase = tokenId.split("/")[0];
+
+    const tokenInfo = await new TokenInfoQuery()
+      .setTokenId(tokenIdBase)
+      .execute(client);
+
+    /* ----------------------------------------------------------------
+       Detectamos fallback bajo **tres** posibilidades:
+         1) fee.royaltyFee.fallbackFee  (getter público del SDK)
+         2) fee._fallbackFee            (propiedad interna vista en JSON)
+         3) fee.toJSON()?.fallbackFee   (por si el objeto expone un serializador)
+       Se considera “true” si cualquiera de los casos anteriores existe
+       y tiene *_amount* o *denominatingTokenId* (algún valor útil).
+    ------------------------------------------------------------------*/
+    const hasFallback =
+      Array.isArray(tokenInfo.customFees) &&
+      tokenInfo.customFees.some((fee) => {
+        // Caso 1: getter estándar (enumerable o no)
+        if (fee.royaltyFee && fee.royaltyFee.fallbackFee) {
+          return true;
+        }
+
+        // Caso 2: propiedades internas con guión bajo
+        if (
+          fee._fallbackFee &&
+          (fee._fallbackFee._amount !== undefined ||
+            fee._fallbackFee._denominatingTokenId !== null)
+        ) {
+          return true;
+        }
+
+        // Caso 3: conversión a JSON
+        try {
+          const json = fee.toJSON ? fee.toJSON() : null;
+          if (json && json.fallbackFee) return true;
+        } catch (_) {
+          /* ignoramos errores de serialización */
+        }
+
+        return false;
+      });
+
+    client.close();
+    return hasFallback;
+  } catch (err) {
+    console.error("Error al verificar fallback:", err);
+    /* Por seguridad, si no podemos verificar asumimos que NO hay fallback
+       (así evitamos falsos bloqueos). */
+    return false;
+  }
+}
 
 // -----------------------------------------------------------
 // FUNCIONES AUXILIARES PARA MIRROR NODE
@@ -122,6 +193,10 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
   // Floor price (vía SentX, si lo deseas)
   const [floorPrice, setFloorPrice] = useState(null);
 
+  // NUEVO → estado “tiene fallback”
+  const [hasFallback, setHasFallback] = useState(false);
+  const [fallbackLoading, setFallbackLoading] = useState(false);
+
   // Responsividad para móvil
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -199,7 +274,7 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
       const tx = new TokenAssociateTransaction()
         .setAccountId(AccountId.fromString(accountId))
         .setTokenIds([tokenIdBase])
-        .setTransactionMemo("Asociación del NFT por WhataSniper")
+        .setTransactionMemo("WhataSniper NFT Association")
         .setMaxTransactionFee(new Hbar(5));
 
       const populatedTx = await connectedSigner.populateTransaction(tx);
@@ -208,16 +283,16 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
       const receipt = await response.getReceiptWithSigner(connectedSigner);
 
       if (receipt.status.toString() === "SUCCESS") {
-        console.log(`Token ${tokenIdBase} asociado con éxito.`);
+        console.log(`Token ${tokenIdBase} successfully associated.`);
       } else {
-        console.error("Error: No se completó la asociación. Receipt:", receipt);
+        console.error("Error: Association not completed. Receipt:", receipt);
       }
     } catch (error) {
-      console.error("Error en associateTokenIfNeeded:", error);
+      console.error("Error in associateTokenIfNeeded:", error);
 
       // Si la red responde con "TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT", continuamos
       if (error.status === "TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT") {
-        console.log("TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT: la cuenta ya lo tenía asociado.");
+        console.log("TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT: account already had it.");
         return;
       }
       throw error;
@@ -230,12 +305,12 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
   const handleSetAllowance = async (newHbarValue) => {
     console.log("handleSetAllowance iniciado");
     if (!isConnected || !accountId || !connectedSigner) {
-      setAllowanceMessage("No se ha podido obtener el signer de la wallet.");
+      setAllowanceMessage("Could not obtain wallet signer.");
       return false;
     }
 
     try {
-      setAllowanceMessage("Solicitando allowance...");
+      setAllowanceMessage("Requesting allowance...");
 
       // 1) Obtenemos todas las órdenes abiertas (estado=0) para sumar sus max_price
       const { data: openOrders, error } = await supabase
@@ -245,8 +320,8 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
         .eq("estado", 0);
 
       if (error) {
-        console.error("Error al obtener órdenes abiertas:", error);
-        setAllowanceMessage("Error al obtener órdenes abiertas.");
+        console.error("Error fetching open orders:", error);
+        setAllowanceMessage("Error fetching open orders.");
         return false;
       }
 
@@ -261,7 +336,7 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
       const finalTotal = parseFloat(totalAllowanceNumber.toFixed(8));
 
       if (isNaN(finalTotal) || finalTotal <= 0) {
-        setAllowanceMessage("No hay allowance para configurar (sin órdenes).");
+        setAllowanceMessage("No allowance to set (no open orders).");
         return false;
       }
 
@@ -276,7 +351,7 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
           allowanceHbar
         )
         .setMaxTransactionFee(new Hbar(2))
-        .setTransactionMemo("Allowance WhataSniper");
+        .setTransactionMemo("WhataSniper Allowance");
 
       // 4) Ejecutamos
       const populatedTx = await connectedSigner.populateTransaction(allowanceTx);
@@ -285,14 +360,14 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
       const receipt = await response.getReceiptWithSigner(connectedSigner);
 
       if (receipt && receipt.status.toString() === "SUCCESS") {
-        setAllowanceMessage(`Allowance total de ${finalTotal} HBAR confirmado.`);
+        setAllowanceMessage(`Total allowance of ${finalTotal} HBAR confirmed.`);
         return true;
       } else {
-        throw new Error("La transacción de allowance no fue confirmada.");
+        throw new Error("Allowance transaction was not confirmed.");
       }
     } catch (error) {
-      console.error("Error al establecer allowance:", error);
-      setAllowanceMessage("Error en la transacción de allowance: " + error.message);
+      console.error("Error setting allowance:", error);
+      setAllowanceMessage("Allowance transaction error: " + error.message);
       return false;
     }
   };
@@ -304,13 +379,23 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
     console.log("handleCreate iniciado");
     const token_id = tokenMode === "manual" ? tokenManual : tokenSelect;
 
+    if (fallbackLoading) {
+      alert("Still checking Fallback Fee. Please wait.");
+      return;
+    }
+
+    if (hasFallback) {
+      alert("The selected NFT has a Fallback Fee. You cannot create an order.");
+      return;
+    }
+
     if (!isConnected || !accountId) {
-      alert("Tu wallet no está conectada.");
+      alert("Your wallet is not connected.");
       resetForm();
       return;
     }
     if (!token_id || !sniperType || !hbar) {
-      alert("Por favor completa todos los campos.");
+      alert("Please complete all fields.");
       resetForm();
       return;
     }
@@ -322,7 +407,7 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
       // 2) Solicitar allowance acumulativa
       const allowanceOk = await handleSetAllowance(hbar);
       if (!allowanceOk) {
-        alert("No se pudo confirmar el allowance. No se registrará la orden.");
+        alert("Allowance could not be confirmed. Order will not be registered.");
         resetForm();
         return;
       }
@@ -340,58 +425,68 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
       ]);
 
       if (error) {
-        console.error("Error al insertar en Supabase:", error);
-        alert("Ocurrió un error al registrar la operación.");
+        console.error("Error inserting in Supabase:", error);
+        alert("An error occurred while registering the operation.");
         return;
       }
 
-      alert("Registro en Supabase exitoso.");
+      alert("Successfully registered in Supabase.");
       setAllowanceMessage("");
     } catch (err) {
-      console.error("Error en handleCreate:", err);
-      alert("No se pudo completar el registro en Supabase.");
+      console.error("Error in handleCreate:", err);
+      alert("Could not complete registration in Supabase.");
     } finally {
       resetForm();
     }
   };
 
   /*************************************************************
-   * 5) OBTENER el floor price del token (SentX)
+   * 5) OBTENER el floor price del token (SentX) + VERIFICAR FALLBACK
    *************************************************************/
   const currentToken = tokenMode === "manual" ? tokenManual : tokenSelect;
   useEffect(() => {
+    /* ---------- 5a. Floor price ---------- */
     if (!currentToken) {
       setFloorPrice(null);
-      return;
-    }
-    if (!sentxApiKey) {
-      console.warn("REACT_APP_SENTX_KEY no definida. No se puede obtener el floor price.");
+    } else if (!sentxApiKey) {
+      console.warn("REACT_APP_SENTX_KEY not set. Cannot fetch floor price.");
       setFloorPrice(null);
-      return;
+    } else {
+      const fetchFloorPrice = async () => {
+        try {
+          const url = `https://api.sentx.io/v1/public/market/floor?apikey=${sentxApiKey}&token=${currentToken}`;
+          console.log("SentX GET Floor URL:", url);
+
+          const response = await fetch(url);
+          if (!response.ok) {
+            throw new Error(`HTTP Error: ${response.status}`);
+          }
+          const data = await response.json();
+          if (data?.success && data.floor !== undefined) {
+            setFloorPrice(data.floor);
+          } else {
+            setFloorPrice("(no floor available)");
+          }
+        } catch (error) {
+          console.error("Error fetching floor price:", error);
+          setFloorPrice("(error fetching floor)");
+        }
+      };
+
+      fetchFloorPrice();
     }
 
-    const fetchFloorPrice = async () => {
-      try {
-        const url = `https://api.sentx.io/v1/public/market/floor?apikey=${sentxApiKey}&token=${currentToken}`;
-        console.log("SentX GET Floor URL:", url);
-
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`Error HTTP: ${response.status}`);
-        }
-        const data = await response.json();
-        if (data?.success && data.floor !== undefined) {
-          setFloorPrice(data.floor);
-        } else {
-          setFloorPrice("(no hay floor disponible)");
-        }
-      } catch (error) {
-        console.error("Error al obtener floor price:", error);
-        setFloorPrice("(error al obtener floor)");
-      }
-    };
-
-    fetchFloorPrice();
+    /* ---------- 5b. Verificación de Fallback ---------- */
+    if (!currentToken) {
+      setHasFallback(false);
+      return;
+    }
+    setFallbackLoading(true);
+    tokenHasRoyaltyFallback(currentToken)
+      .then((has) => {
+        setHasFallback(has);
+      })
+      .finally(() => setFallbackLoading(false));
   }, [currentToken]);
 
   /*************************************************************
@@ -404,6 +499,18 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
       {allowanceMessage && (
         <div style={{ marginBottom: "1rem", textAlign: "center", color: "#0bf" }}>
           {allowanceMessage}
+        </div>
+      )}
+
+      {fallbackLoading && (
+        <div style={{ marginBottom: "1rem", textAlign: "center", color: "#ff0" }}>
+          Checking Fallback Fee...
+        </div>
+      )}
+
+      {hasFallback && !fallbackLoading && (
+        <div style={{ marginBottom: "1rem", textAlign: "center", color: "#f33" }}>
+          This NFT has a Fallback Fee. Order creation disabled.
         </div>
       )}
 
@@ -433,7 +540,7 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
                   checked={tokenMode === "asociado"}
                   onChange={() => setTokenMode("asociado")}
                 />
-                Asociado
+                Associated
               </label>
             </div>
           </div>
@@ -442,7 +549,7 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
               id="tokenID"
               className="field-input"
               type="text"
-              placeholder="Introduce el Token ID manualmente"
+              placeholder="Enter the Token ID manually"
               value={tokenManual}
               onChange={(e) => setTokenManual(e.target.value)}
             />
@@ -453,7 +560,7 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
               value={tokenSelect}
               onChange={(e) => setTokenSelect(e.target.value)}
             >
-              <option value="">Selecciona un Token</option>
+              <option value="">Select a Token</option>
               {tokenEntries.map(([nombre, id], idx) => (
                 <option key={idx} value={id}>
                   {nombre}
@@ -468,7 +575,7 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
           <div style={{ marginBottom: "1rem", textAlign: "center" }}>
             <strong style={{ color: "#20e0b1" }}>Floor price:</strong>{" "}
             <span style={{ color: "#fff" }}>
-              {floorPrice !== null ? `${floorPrice} $HBAR` : "Cargando..."}
+              {floorPrice !== null ? `${floorPrice} $HBAR` : "Loading..."}
             </span>
           </div>
         )}
@@ -498,7 +605,7 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
             id="hbar"
             className="field-input"
             type="text"
-            placeholder="Cantidad de HBAR"
+            placeholder="Amount of HBAR"
             value={hbar}
             onChange={(e) => setHbar(e.target.value)}
           />
@@ -506,10 +613,46 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
 
         {/* Botón para crear */}
         {isMobile ? (
+          hasFallback || fallbackLoading ? (
+            <button
+              type="button"
+              className="create-button"
+              disabled
+              style={{
+                width: "100%",
+                padding: "1rem",
+                fontSize: "16px",
+                textAlign: "center",
+                textTransform: "uppercase",
+                fontWeight: "bold",
+                opacity: 0.4,
+                cursor: "not-allowed",
+              }}
+            >
+              {fallbackLoading ? "Checking..." : "Fallback detected"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="create-button"
+              onClick={handleCreate}
+              style={{
+                width: "100%",
+                padding: "1rem",
+                fontSize: "16px",
+                textAlign: "center",
+                textTransform: "uppercase",
+                fontWeight: "bold",
+              }}
+            >
+              Create Order
+            </button>
+          )
+        ) : hasFallback || fallbackLoading ? (
           <button
             type="button"
             className="create-button"
-            onClick={handleCreate}
+            disabled
             style={{
               width: "100%",
               padding: "1rem",
@@ -517,14 +660,16 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
               textAlign: "center",
               textTransform: "uppercase",
               fontWeight: "bold",
+              opacity: 0.4,
+              cursor: "not-allowed",
             }}
           >
-            Crear Orden
+            {fallbackLoading ? "Checking..." : "Fallback detected"}
           </button>
         ) : (
           <SwipeButton
             key={sliderKey}
-            text="Desliza para crear"
+            text="Swipe to create"
             onSwipe={handleCreate}
           />
         )}
