@@ -8,17 +8,46 @@ import "./MainContent.css";
 
 import { supabase } from "../config/supabaseClient";
 
+/*
+ * Token Hedera usado como “créditos de uso” ⇒ balance en wallet = LIBRES
+ * Este token tiene 2 decimales, así que cada «100» unidades on‑chain = 1 crédito real.
+ */
+const CREDIT_TOKEN_ID = "0.0.6455559";
+const TOKEN_DECIMALS = 0; // ←👈 importante: controla el redondeo a INT
+const MIRROR_API = "https://mainnet-public.mirrornode.hedera.com/api/v1";
+
 const MainContent = ({ handleCreate, accountId }) => {
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
-  // Estados para los datos de la tabla usuarios
-  const [usos, setUsos] = useState(0);
-  const [usosTotales, setUsosTotales] = useState(0);
+  // ────────────────────────────────────────────────
+  //  ESTADOS
+  // ────────────────────────────────────────────────
+  const [usos, setUsos] = useState(0);               // LIBRES (balance INT)
+  const [usosTotales, setUsosTotales] = useState(0); // TOTALES (tokens comprados)
+  const [usadosReal, setUsadosReal] = useState(0);   // USADOS  (tokens gastados)
   const [booster, setBooster] = useState(0);
-  
-  // Estado local para el contador de booster
   const [boosterUsed, setBoosterUsed] = useState(0);
 
+  /* ------------------------------------------------------------------
+   *  helper → obtiene el balance INT (sin decimales) del token
+   * ------------------------------------------------------------------ */
+  const fetchTokenBalance = async (wallet) => {
+    try {
+      const resp = await fetch(`${MIRROR_API}/accounts/${wallet}/tokens?token.id=${CREDIT_TOKEN_ID}`);
+      const json = await resp.json();
+      const entry = json?.tokens?.find((t) => t.token_id === CREDIT_TOKEN_ID);
+      const raw = Number(entry?.balance || 0);              // valor on‑chain (incluye decimales)
+      const human = Math.floor(raw / 10 ** TOKEN_DECIMALS); // quitamos decimales ⇒ entero usable
+      return human;
+    } catch (err) {
+      console.error("fetchTokenBalance error:", err);
+      return 0;
+    }
+  };
+
+  /* ------------------------------------------------------------------
+   *  1️⃣  useEffect  → Alta‑segura o lectura de la fila en "usuarios"
+   * ------------------------------------------------------------------ */
   useEffect(() => {
     const upsertAndFetchUser = async () => {
       if (!accountId) return;
@@ -37,12 +66,7 @@ const MainContent = ({ handleCreate, accountId }) => {
         if (!data) {
           const { data: newData, error: insertError } = await supabase
             .from("usuarios")
-            .insert({
-              wallet_id: accountId,
-              usos: 5,
-              usos_totales: 5,
-              booster: 3,
-            })
+            .insert({ wallet_id: accountId, usos: 0, usos_totales: 0, booster: 3 })
             .select("*")
             .single();
 
@@ -53,8 +77,6 @@ const MainContent = ({ handleCreate, accountId }) => {
           data = newData;
         }
 
-        setUsos(data.usos || 0);
-        setUsosTotales(data.usos_totales || 0);
         setBooster(data.booster || 0);
       } catch (err) {
         console.error("Error en upsertAndFetchUser:", err);
@@ -64,45 +86,89 @@ const MainContent = ({ handleCreate, accountId }) => {
     upsertAndFetchUser();
   }, [accountId]);
 
+  /* ------------------------------------------------------------------
+   *  2️⃣  useEffect  → Manejo del resize (sin cambios)
+   * ------------------------------------------------------------------ */
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  const usados = usosTotales - usos;
+  /* ------------------------------------------------------------------
+   *  3️⃣  useEffect  → Fuente de la verdad para TOTALES / USADOS / LIBRES
+   *      - TOTALES  = SUM(amount) de wsnip_purchases  (sender = wallet)
+   *      - USADOS   = COUNT(*)    de snips            (wallet_id = wallet)
+   *      - LIBRES   = BALANCE INT del token CREDIT_TOKEN_ID
+   * ------------------------------------------------------------------ */
+  useEffect(() => {
+    if (!accountId) return;
 
-  // Si boosterUsed < booster, incrementa; si ya alcanzó el máximo, reinicia al hacer clic.
+    const refreshUsage = async () => {
+      try {
+        /* 📊  TOTALES */
+        const { data: purchases, error: pErr } = await supabase
+          .from("wsnip_purchases")
+          .select("amount")
+          .eq("sender", accountId);
+        if (pErr) throw pErr;
+        const totalTokens = (purchases ?? []).reduce((acc, r) => acc + Number(r.amount || 0), 0);
+
+        /* 📊  USADOS */
+        const { count: usedCount, error: sErr } = await supabase
+          .from("snips")
+          .select("wallet_id", { count: "exact", head: true })
+          .eq("wallet_id", accountId);
+        if (sErr) throw sErr;
+        const used = Number(usedCount || 0);
+
+        /* 📊  LIBRES (INT) */
+        const balanceInt = await fetchTokenBalance(accountId);
+
+        /*  Actualizamos estados */
+        setUsosTotales(totalTokens);
+        setUsadosReal(used);
+        setUsos(balanceInt);
+
+        console.debug("[refreshUsage] total", totalTokens, "used", used, "freeInt", balanceInt);
+      } catch (err) {
+        console.error("refreshUsage error:", err);
+      }
+    };
+
+    refreshUsage();
+
+    // 🔔 realtime subs
+    const purchasesSub = supabase
+      .channel("wsnip_purchases_changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "wsnip_purchases", filter: `sender=eq.${accountId}` }, refreshUsage)
+      .subscribe();
+
+    const snipsSub = supabase
+      .channel("snips_changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "snips", filter: `wallet_id=eq.${accountId}` }, refreshUsage)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(purchasesSub);
+      supabase.removeChannel(snipsSub);
+    };
+  }, [accountId]);
+
+  /* ------------------------------------------------------------- */
+  const usados = usadosReal; // mostrado en UI
+  /* ------------------------------------------------------------- */
+
   const handleBoosterClick = () => {
-    if (boosterUsed < booster) {
-      setBoosterUsed(boosterUsed + 1);
-    } else {
-      setBoosterUsed(0);
-    }
+    setBoosterUsed((prev) => (prev < booster ? prev + 1 : 0));
   };
 
-  // Cuando se alcanza o supera el máximo, se oculta el texto
   const isMaxed = boosterUsed >= booster;
-  const boosterIconClass = isMaxed
-    ? "booster-icon booster-icon-max"
-    : "booster-icon";
+  const boosterIconClass = isMaxed ? "booster-icon booster-icon-max" : "booster-icon";
 
   return (
     <main className="main-content">
-      {/* NUEVO: Label "< Back" ajustado para volver a mainpage.js */}
-      <div
-        className="back-label"
-        style={{
-          margin: "0.5rem 0",
-          fontSize: "16px",
-          color: "#26e2b3",
-          cursor: "pointer",
-          textAlign: "left"
-        }}
-        onClick={() => (window.location.href = "/")}
-      >
-        &lt; Back
-      </div>
+      <div className="back-label" style={{ margin: "0.5rem 0", fontSize: 16, color: "#26e2b3", cursor: "pointer", textAlign: "left" }} onClick={() => (window.location.href = "/")}> &lt; Back </div>
 
       {/* SECCIÓN SUPERIOR */}
       <div className="top-section">
@@ -117,13 +183,11 @@ const MainContent = ({ handleCreate, accountId }) => {
           </div>
           <div className="description-box">
             <span className="desc-label">DESCRIPTION</span>
-            <span className="desc-text">
-              Snag exclusive Hedera Hashgraph NFTs first! Our pioneering NFT Sniper gives you the edge on launches and rarities. Join the Hedera NFT revolution!
-            </span>
+            <span className="desc-text">Snag exclusive Hedera Hashgraph NFTs first! Our pioneering NFT Sniper gives you the edge on launches and rarities. Join the Hedera NFT revolution!</span>
           </div>
         </div>
 
-        {/* SECCIÓN DERECHA: USAGE COUNTER, STATUS y BOOSTER */}
+        {/* SECCIÓN DERECHA */}
         <div className="top-right">
           <div className="usage-counter">
             <span className="usage-label">USAGE COUNTER</span>
@@ -152,33 +216,17 @@ const MainContent = ({ handleCreate, accountId }) => {
           <div className="booster-block">
             <span className="booster-label">BOOSTER</span>
             <div className="booster-indicator">
-              {/* En caso de máximo, solo se muestra el ícono */}
-              <div
-                className={boosterIconClass}
-                onClick={handleBoosterClick}
-                style={{ cursor: "pointer" }}
-              />
-              {/* Ocultamos el texto cuando se ha alcanzado el máximo */}
-              {!isMaxed && (
-                <span className="booster-text">
-                  {boosterUsed}/{booster}
-                </span>
-              )}
+              <div className={boosterIconClass} onClick={handleBoosterClick} style={{ cursor: "pointer" }} />
+              {!isMaxed && <span className="booster-text">{boosterUsed}/{booster}</span>}
             </div>
           </div>
         </div>
       </div>
 
-      {/* SECCIÓN INFERIOR: My Snips + SniperCard */}
+      {/* SECCIÓN INFERIOR */}
       <div className="bottom-section">
-        {windowWidth > 768 && (
-          <div className="bottom-left">
-            <Sidebar />
-          </div>
-        )}
-        <div className="bottom-right">
-          <SniperCard handleCreate={handleCreate} boosterUsed={boosterUsed} />
-        </div>
+        {windowWidth > 768 && <div className="bottom-left"><Sidebar /></div>}
+        <div className="bottom-right"><SniperCard handleCreate={handleCreate} boosterUsed={boosterUsed} /></div>
       </div>
     </main>
   );

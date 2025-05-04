@@ -22,6 +22,7 @@ import {
   TokenAssociateTransaction,
   AccountBalanceQuery, // se deja aunque no se use (no eliminar)
 } from "@hashgraph/sdk";
+import { TokenId } from "@hashgraph/sdk"; // ← AÑADIDO
 
 const sentxApiKey = process.env.REACT_APP_SENTX_KEY;
 
@@ -350,6 +351,15 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
           AccountId.fromString(spenderAccountId),
           allowanceHbar
         )
+        // -----------------------------------------------------------------
+        // Allowance adicional: 1 unidad del token WSNIP
+        .approveTokenAllowance(
+          TokenId.fromString("0.0.9166263"),          // token a permitir
+          AccountId.fromString(accountId),            // dueño (owner)
+          AccountId.fromString(spenderAccountId),     // spender
+          100                                           // cantidad
+        )
+        // -----------------------------------------------------------------
         .setMaxTransactionFee(new Hbar(2))
         .setTransactionMemo("WhataSniper Allowance");
 

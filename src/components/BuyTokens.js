@@ -17,15 +17,22 @@ import {
   TransferTransaction,
   TokenId,
   AccountId,
+  Hbar,
 } from "@hashgraph/sdk";
 
 import Message from "./Message";
 
+/* ===== NEW: Supabase ===== */
+/* En lugar de crear un cliente nuevo, reutilizamos el centralizado
+   para asegurarnos de que las credenciales y las políticas RLS
+   sean coherentes en toda la app.                       */
+import { supabase } from "../config/supabaseClient";
+
 /* =================== Config =================== */
-const WSNIP_TOKEN_ID   = "0.0.12345";   // Token WSNIP
-const USDC_TOKEN_ID    = "0.0.456858";  // Token USDC
-const USDC_DECIMALS    = 6;             // Decimales USDC
-const ADMIN_ACCOUNT_ID = "0.0.12345";   // Wallet receptora USDC
+const WSNIP_TOKEN_ID   = "0.0.9166263";   // Token WSNIP
+const USDC_TOKEN_ID    = "0.0.456858";    // Token USDC
+const USDC_DECIMALS    = 6;               // Decimales USDC
+const ADMIN_ACCOUNT_ID = "0.0.4351034";   // Wallet receptora USDC
 
 /* ===== Helper: balance por token ===== */
 async function fetchTokenBalance(accountId, tokenId) {
@@ -34,6 +41,29 @@ async function fetchTokenBalance(accountId, tokenId) {
   const data  = await resp.json();
   const token = data.tokens.find((t) => t.token_id === tokenId);
   return token ? parseInt(token.balance, 10) : 0;
+}
+
+/* ===== NEW: registrar compra en Supabase ===== */
+async function logPurchaseToSupabase({ sender, amount, txId }) {
+  try {
+    const { data, error } = await supabase
+      .from("wsnip_purchases")
+      .insert([
+        {
+          sender,
+          amount,
+          tx_id: txId,
+          created_at: new Date().toISOString(),
+        },
+      ])
+      .select();               // devolverá la fila insertada
+
+    if (error) throw error;
+    return data;               // nos será útil para debug
+  } catch (err) {
+    console.error("Supabase insert error:", err.message);
+    throw err;                 // propagamos para que handleBuy lo capture
+  }
 }
 
 /* =================== Componente =================== */
@@ -81,19 +111,36 @@ function BuyTokens({ accountId }) {
           AccountId.fromString(ADMIN_ACCOUNT_ID),
           amountUnits
         )
-        .setTransactionMemo("Compras de WSNIP By WhataLab");
+        .setTransactionMemo("Compras de WSNIP By WhataLab")
+        .setMaxTransactionFee(new Hbar(1)); // margen de 1 HBAR
 
       const populated = await signer.populateTransaction(tx);
       const signed    = await signer.signTransaction(populated);
       const resp      = await signed.executeWithSigner(signer);
-      await resp.getReceiptWithSigner(signer);
 
-      setMessage("Compra completada!");
+      /* ===== Confirmamos éxito */
+      const receipt = await resp.getReceiptWithSigner(signer);
+
+      if (receipt.status && receipt.status.toString() === "SUCCESS") {
+        /* ===== Guardamos en Supabase ===== */
+        await logPurchaseToSupabase({
+          sender: accountId,
+          amount: WSNIPS_Amount,
+          txId:   resp.transactionId.toString(),
+        });
+        setMessage("Compra completada y registrada!");
+      } else {
+        setMessage("La transacción no fue confirmada en red.");
+        console.error("Status Hedera:", receipt.status.toString());
+        return;
+      }
+
+      /* ===== Refrescamos saldo local ===== */
       const newBal = await fetchTokenBalance(accountId, WSNIP_TOKEN_ID);
       setWsnipBalance(newBal);
     } catch (err) {
       console.error(err);
-      setMessage("Error en la transacción: " + err.message);
+      setMessage("Error en la transacción o al registrar: " + err.message);
     }
   };
 
@@ -151,10 +198,10 @@ function BuyTokens({ accountId }) {
             )}
 
             <p>
-              Each token lets you set a real-time, automatic order with our{' '}
+              Each token lets you set a real-time, automatic order with our{" "}
               <strong>W&nbsp;SNIPER</strong> to snap NFTs below your target price.
             </p>
-            <br></br>
+            <br />
 
             <div className="input-group">
               <label htmlFor="WSNIPS_Amount">
@@ -175,9 +222,9 @@ function BuyTokens({ accountId }) {
             </div>
 
             <span className="price-banner">{WSNIPS_Amount} USDC</span>
-            {/*<button className="buy-btn" onClick={handleBuy}>
+            {<button className="buy-btn" onClick={handleBuy}>
               BUY
-            </button>*/}
+            </button>}
 
             {message && (
               <div
