@@ -15,6 +15,7 @@ import {
 } from "@buidlerlabs/hashgraph-react-wallets/connectors";
 import {
   TransferTransaction,
+  TokenAssociateTransaction,        // <-- NEW: Para asociar el token
   TokenId,
   AccountId,
   Hbar,
@@ -40,7 +41,16 @@ async function fetchTokenBalance(accountId, tokenId) {
   const resp  = await fetch(url);
   const data  = await resp.json();
   const token = data.tokens.find((t) => t.token_id === tokenId);
-  return token ? parseInt(token.balance, 10) : 0;
+  return token ? parseInt(token.balance, 10) : null;   // null si NO está asociado
+}
+
+/* ===== NEW Helper: comprobar asociación ===== */
+async function checkTokenAssociation(accountId, tokenId) {
+  const url   = `https://mainnet.mirrornode.hedera.com/api/v1/accounts/${accountId}/tokens?limit=100`;
+  const resp  = await fetch(url);
+  const data  = await resp.json();
+  const token = data.tokens.find((t) => t.token_id === tokenId);
+  return !!token;                                      // true si asociado
 }
 
 /* ===== NEW: registrar compra en Supabase ===== */
@@ -74,21 +84,74 @@ function BuyTokens({ accountId }) {
   const isConnected = kc || hc;
   const signer      = kc ? signerKabila : hc ? signerHashpack : null;
 
-  /* Estados */
-  const [wsnipBalance, setWsnipBalance] = useState(null);
+  /* ======== Estados ======== */
+  const [wsnipBalance,  setWsnipBalance]  = useState(null);  // null = sin asociar
+  const [isAssociated,  setIsAssociated]  = useState(null);  // null = loading
+  const [associateMsg,  setAssociateMsg]  = useState("");    // mensajes de asociación
   const [WSNIPS_Amount, setWSNIPS_Amount] = useState(5);
-  const [message, setMessage] = useState("");
+  const [message,       setMessage]       = useState("");
 
-  /* Balance de WSNIP al montar / cambiar accountId */
+  /* ======== Efecto: check asociación + balance ======== */
   useEffect(() => {
     if (!accountId) return;
-    fetchTokenBalance(accountId, WSNIP_TOKEN_ID).then(setWsnipBalance);
+
+    // Primero verificamos si la cuenta tiene asociado el token
+    checkTokenAssociation(accountId, WSNIP_TOKEN_ID).then((assoc) => {
+      setIsAssociated(assoc);
+      if (assoc) {
+        // Si está asociado, traemos balance
+        fetchTokenBalance(accountId, WSNIP_TOKEN_ID).then(setWsnipBalance);
+      } else {
+        // Si NO está asociado, dejamos balance en null (distingue balance 0 vs no asociado)
+        setWsnipBalance(null);
+      }
+    });
   }, [accountId]);
 
-  /* Handle BUY */
+  /* ======== Handle ASSOCIATION ======== */
+  const handleAssociate = async () => {
+    if (!isConnected || !signer) {
+      alert("Wallet not connected");
+      return;
+    }
+
+    try {
+      setAssociateMsg("Firmando transacción de asociación...");
+      const tx = new TokenAssociateTransaction()
+        .setAccountId(AccountId.fromString(accountId))
+        .setTokenIds([TokenId.fromString(WSNIP_TOKEN_ID)])
+        .setMaxTransactionFee(new Hbar(2));           // margen de 2 HBAR
+
+      const populated = await signer.populateTransaction(tx);
+      const signed    = await signer.signTransaction(populated);
+      const resp      = await signed.executeWithSigner(signer);
+      const receipt   = await resp.getReceiptWithSigner(signer);
+
+      if (receipt.status && receipt.status.toString() === "SUCCESS") {
+        setAssociateMsg("Token asociado correctamente!");
+        setIsAssociated(true);
+
+        /* Tras asociar: refrescamos balance (será 0) */
+        const newBal = await fetchTokenBalance(accountId, WSNIP_TOKEN_ID);
+        setWsnipBalance(newBal);
+      } else {
+        setAssociateMsg("La transacción no fue confirmada en red.");
+        console.error("Status Hedera:", receipt.status.toString());
+      }
+    } catch (err) {
+      console.error(err);
+      setAssociateMsg("Error al asociar: " + err.message);
+    }
+  };
+
+  /* ======== Handle BUY ======== */
   const handleBuy = async () => {
     if (!isConnected || !signer) {
       alert("Wallet not connected");
+      return;
+    }
+    if (!isAssociated) {
+      setMessage("Debes asociar el token antes de comprar.");
       return;
     }
     if (WSNIPS_Amount < 5) {
@@ -191,7 +254,13 @@ function BuyTokens({ accountId }) {
             <img src={wsnipImg} alt="WSNIP" className="product-img" />
             <h3>WSNIP</h3>
 
-            {wsnipBalance !== null && (
+            {/* ===== Saldo o estado de asociación ===== */}
+            {isAssociated === false && (
+              <p className="balance-text">
+                ⚠️ Token <strong>NO asociado</strong>
+              </p>
+            )}
+            {isAssociated && wsnipBalance !== null && (
               <p className="balance-text">
                 Holds <strong>{wsnipBalance}</strong> WSNIP
               </p>
@@ -203,6 +272,7 @@ function BuyTokens({ accountId }) {
             </p>
             <br />
 
+            {/* --- Cantidad a comprar --- */}
             <div className="input-group">
               <label htmlFor="WSNIPS_Amount">
                 WSNIP to purchase&nbsp;
@@ -221,11 +291,34 @@ function BuyTokens({ accountId }) {
               />
             </div>
 
+            {/* ===== NEW: Acción de asociación si aplica ===== */}
+            {isAssociated === false && (
+              <>
+                <div className="associate-warning">
+                  Debes asociar el token a tu wallet antes de comprar.
+                </div>
+                <button className="associate-btn" onClick={handleAssociate}>
+                  ASOCIAR WSNIP
+                </button>
+                {associateMsg && (
+                  <div
+                    className={`message ${
+                      associateMsg.startsWith("Error") ? "error" : "success"
+                    }`}
+                  >
+                    {associateMsg}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Banner de precio y botón BUY */}
             <span className="price-banner">{WSNIPS_Amount} USDC</span>
             {<button className="buy-btn" onClick={handleBuy}>
               BUY
             </button>}
 
+            {/* Mensajes de compra */}
             {message && (
               <div
                 className={`message ${

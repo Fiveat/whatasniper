@@ -27,6 +27,11 @@ import { TokenId } from "@hashgraph/sdk"; // ← AÑADIDO
 const sentxApiKey = process.env.REACT_APP_SENTX_KEY;
 
 /* ------------------------------------------------------------------
+ *  CONSTANTE DEL TOKEN WSNIP (para bloqueo de órdenes)
+ * ------------------------------------------------------------------*/
+const WSNIP_TOKEN_ID = "0.0.9166263"; // ← NUEVO
+
+/* ------------------------------------------------------------------
  *  CREDENCIALES *EXACTAS* DEL FICHERO fallback.js
  *  (se usan **solo** para consultar TokenInfo; no toques nada)
  * ------------------------------------------------------------------*/
@@ -198,6 +203,9 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
   const [hasFallback, setHasFallback] = useState(false);
   const [fallbackLoading, setFallbackLoading] = useState(false);
 
+  // NUEVO → dispone de WSNIP en la wallet
+  const [hasWsnipToken, setHasWsnipToken] = useState(null); // null = loading
+
   // Responsividad para móvil
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -239,6 +247,28 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
   console.log("SniperCard => accountId (Hashpack):", accountIdHashpack);
   console.log("SniperCard => final accountId:", accountId);
   console.log("SniperCard => signer:", connectedSigner);
+
+  // NUEVO → Verificar balance del token WSNIP
+  useEffect(() => {
+    async function checkWsnip() {
+      if (!accountId) {
+        setHasWsnipToken(false);
+        return;
+      }
+      try {
+        const tokens = await getTokens(accountId);
+        const wsnipEntry = tokens.find((t) => t.token_id === WSNIP_TOKEN_ID);
+        const balance = wsnipEntry ? parseInt(wsnipEntry.balance, 10) : 0;
+        setHasWsnipToken(balance > 0);
+      } catch (err) {
+        console.error("Error consultando balance WSNIP:", err);
+        /* Ante error, asumimos que NO tiene el token para evitar fallos de seguridad */
+        setHasWsnipToken(false);
+      }
+    }
+
+    checkWsnip();
+  }, [accountId]);
 
   // Función para resetear el formulario
   const resetForm = () => {
@@ -354,10 +384,10 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
         // -----------------------------------------------------------------
         // Allowance adicional: 1 unidad del token WSNIP
         .approveTokenAllowance(
-          TokenId.fromString("0.0.9166263"),          // token a permitir
-          AccountId.fromString(accountId),            // dueño (owner)
-          AccountId.fromString(spenderAccountId),     // spender
-          100                                           // cantidad
+          TokenId.fromString(WSNIP_TOKEN_ID),          // token a permitir
+          AccountId.fromString(accountId),             // dueño (owner)
+          AccountId.fromString(spenderAccountId),      // spender
+          100                                          // cantidad
         )
         // -----------------------------------------------------------------
         .setMaxTransactionFee(new Hbar(2))
@@ -396,6 +426,11 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
 
     if (hasFallback) {
       alert("The selected NFT has a Fallback Fee. You cannot create an order.");
+      return;
+    }
+
+    if (!hasWsnipToken) {
+      alert("You need at least 1 WSNIP token to create an order.");
       return;
     }
 
@@ -506,6 +541,7 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
     <div className="sniper-card">
       <h2 className="sniper-title">SNIPER</h2>
 
+      {/* ---------- Mensajes varios ---------- */}
       {allowanceMessage && (
         <div style={{ marginBottom: "1rem", textAlign: "center", color: "#0bf" }}>
           {allowanceMessage}
@@ -521,6 +557,39 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
       {hasFallback && !fallbackLoading && (
         <div style={{ marginBottom: "1rem", textAlign: "center", color: "#f33" }}>
           This NFT has a Fallback Fee. Order creation disabled.
+        </div>
+      )}
+
+      {/* ---------- NUEVO: Mensaje si NO tiene WSNIP ---------- */}
+      {hasWsnipToken === false && (
+        <div
+          style={{
+            marginBottom: "1rem",
+            textAlign: "center",
+            color: "#f33",
+            fontWeight: "bold",
+          }}
+        >
+          You need at least 1&nbsp;WSNIP token to create an order.
+          <br />
+          <button
+            onClick={() => (window.location.href = "/buytokens")}
+            style={{
+              marginTop: "0.75rem",
+              padding: "0.5rem 1rem",
+              borderRadius: "12px",
+              background: "var(--clr-accent)",
+              color: "var(--clr-bg)",
+              fontWeight: "600",
+              cursor: "pointer",
+              border: "none",
+              transition: "background .25s, transform .2s",
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.background = "var(--clr-accent-light)")}
+            onMouseOut={(e) => (e.currentTarget.style.background = "var(--clr-accent)")}
+          >
+            Buy&nbsp;WSNIP
+          </button>
         </div>
       )}
 
@@ -622,8 +691,44 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
         </div>
 
         {/* Botón para crear */}
-        {isMobile ? (
-          hasFallback || fallbackLoading ? (
+        {hasWsnipToken && ( // Sólo mostramos controles de creación si SÍ tiene WSNIP
+          isMobile ? (
+            hasFallback || fallbackLoading ? (
+              <button
+                type="button"
+                className="create-button"
+                disabled
+                style={{
+                  width: "100%",
+                  padding: "1rem",
+                  fontSize: "16px",
+                  textAlign: "center",
+                  textTransform: "uppercase",
+                  fontWeight: "bold",
+                  opacity: 0.4,
+                  cursor: "not-allowed",
+                }}
+              >
+                {fallbackLoading ? "Checking..." : "Fallback detected"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="create-button"
+                onClick={handleCreate}
+                style={{
+                  width: "100%",
+                  padding: "1rem",
+                  fontSize: "16px",
+                  textAlign: "center",
+                  textTransform: "uppercase",
+                  fontWeight: "bold",
+                }}
+              >
+                Create Order
+              </button>
+            )
+          ) : hasFallback || fallbackLoading ? (
             <button
               type="button"
               className="create-button"
@@ -642,46 +747,12 @@ function SniperCard({ handleCreate: externalHandleCreate, boosterUsed }) {
               {fallbackLoading ? "Checking..." : "Fallback detected"}
             </button>
           ) : (
-            <button
-              type="button"
-              className="create-button"
-              onClick={handleCreate}
-              style={{
-                width: "100%",
-                padding: "1rem",
-                fontSize: "16px",
-                textAlign: "center",
-                textTransform: "uppercase",
-                fontWeight: "bold",
-              }}
-            >
-              Create Order
-            </button>
+            <SwipeButton
+              key={sliderKey}
+              text="Swipe to create"
+              onSwipe={handleCreate}
+            />
           )
-        ) : hasFallback || fallbackLoading ? (
-          <button
-            type="button"
-            className="create-button"
-            disabled
-            style={{
-              width: "100%",
-              padding: "1rem",
-              fontSize: "16px",
-              textAlign: "center",
-              textTransform: "uppercase",
-              fontWeight: "bold",
-              opacity: 0.4,
-              cursor: "not-allowed",
-            }}
-          >
-            {fallbackLoading ? "Checking..." : "Fallback detected"}
-          </button>
-        ) : (
-          <SwipeButton
-            key={sliderKey}
-            text="Swipe to create"
-            onSwipe={handleCreate}
-          />
         )}
       </form>
     </div>

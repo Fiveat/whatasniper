@@ -90,7 +90,7 @@ function Modal({ isOpen, onClose }) {
 
         <div className="modal-buttons">
           {isConnected ? (
-            <button onClick={handleDisconnect}>Desconectar Wallet</button>
+            <button onClick={handleDisconnect}>Disconnect Wallet</button>
           ) : (
             <>
               <button
